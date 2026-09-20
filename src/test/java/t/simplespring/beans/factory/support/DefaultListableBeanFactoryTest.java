@@ -14,6 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,6 +79,34 @@ class DefaultListableBeanFactoryTest {
         beanFactory.preInstantiateSingletons();
 
         assertEquals(1, CountingService.instances);
+    }
+
+    @Test
+    void createsNewPrototypeOnEveryCall() {
+        beanFactory.registerBeanDefinition("counting",
+                new BeanDefinition(CountingService.class, BeanDefinition.SCOPE_PROTOTYPE));
+
+        assertNotSame(beanFactory.getBean("counting"), beanFactory.getBean(CountingService.class));
+        assertEquals(2, CountingService.instances);
+    }
+
+    @Test
+    void doesNotPreInstantiatePrototypes() {
+        beanFactory.registerBeanDefinition("counting",
+                new BeanDefinition(CountingService.class, BeanDefinition.SCOPE_PROTOTYPE));
+
+        beanFactory.preInstantiateSingletons();
+
+        assertEquals(0, CountingService.instances);
+    }
+
+    @Test
+    void failsOnUnknownScope() {
+        BeanDefinitionStoreException e = assertThrows(BeanDefinitionStoreException.class,
+                () -> beanFactory.registerBeanDefinition("counting",
+                        new BeanDefinition(CountingService.class, "request")));
+
+        assertTrue(e.getMessage().contains("request"));
     }
 
     @Test
