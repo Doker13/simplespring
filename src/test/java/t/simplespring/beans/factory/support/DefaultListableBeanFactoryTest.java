@@ -157,7 +157,7 @@ class DefaultListableBeanFactoryTest {
     }
 
     @Test
-    void failsWhenDefaultConstructorIsMissing() {
+    void failsWhenConstructorCannotBeChosen() {
         beanFactory.registerBeanDefinition("configured", new BeanDefinition(ConfiguredService.class));
 
         BeanCreationException e = assertThrows(BeanCreationException.class,
@@ -165,6 +165,17 @@ class DefaultListableBeanFactoryTest {
 
         assertTrue(e.getMessage().contains("configured"));
         assertInstanceOf(NoSuchMethodException.class, e.getCause());
+    }
+
+    @Test
+    void failsWhenConstructorThrows() {
+        beanFactory.registerBeanDefinition("broken", new BeanDefinition(BrokenService.class));
+
+        BeanCreationException e = assertThrows(BeanCreationException.class,
+                () -> beanFactory.getBean("broken"));
+
+        assertTrue(e.getMessage().contains("broken"));
+        assertInstanceOf(IllegalStateException.class, e.getCause());
     }
 
     interface Greeter {
@@ -195,6 +206,15 @@ class DefaultListableBeanFactoryTest {
 
     static class ConfiguredService {
         ConfiguredService(String url) {
+        }
+
+        ConfiguredService(String url, int timeout) {
+        }
+    }
+
+    static class BrokenService {
+        BrokenService() {
+            throw new IllegalStateException("no connection");
         }
     }
 }

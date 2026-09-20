@@ -6,8 +6,13 @@ import t.simplespring.beans.factory.BeanDefinitionStoreException;
 import t.simplespring.beans.factory.BeanFactory;
 import t.simplespring.beans.factory.NoSuchBeanDefinitionException;
 import t.simplespring.beans.factory.NoUniqueBeanDefinitionException;
+import t.simplespring.beans.factory.UnsatisfiedDependencyException;
+import t.simplespring.beans.factory.annotation.Autowired;
 import t.simplespring.beans.factory.config.BeanDefinition;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -106,14 +111,57 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
 
     private Object createBean(String beanName, BeanDefinition beanDefinition) {
         Class<?> beanClass = beanDefinition.beanClass();
+        Constructor<?> constructor = resolveConstructor(beanName, beanClass);
+        Object[] arguments = resolveArguments(beanName, constructor);
         try {
-            return beanClass.getDeclaredConstructor().newInstance();
-        } catch (NoSuchMethodException e) {
+            constructor.setAccessible(true);
+            return constructor.newInstance(arguments);
+        } catch (InvocationTargetException e) {
             throw new BeanCreationException(beanName,
-                    "no default constructor found in " + beanClass.getName(), e);
+                    "constructor of " + beanClass.getName() + " threw an exception", e.getCause());
         } catch (ReflectiveOperationException e) {
             throw new BeanCreationException(beanName,
                     "instantiation of " + beanClass.getName() + " failed", e);
+        }
+    }
+
+    private Constructor<?> resolveConstructor(String beanName, Class<?> beanClass) {
+        Constructor<?>[] constructors = beanClass.getDeclaredConstructors();
+        if (constructors.length == 1) {
+            return constructors[0];
+        }
+        List<Constructor<?>> autowired = Arrays.stream(constructors)
+                .filter(constructor -> constructor.isAnnotationPresent(Autowired.class))
+                .toList();
+        if (autowired.size() > 1) {
+            throw new BeanCreationException(beanName,
+                    "more than one @Autowired constructor found in " + beanClass.getName());
+        }
+        if (autowired.size() == 1) {
+            return autowired.getFirst();
+        }
+        try {
+            return beanClass.getDeclaredConstructor();
+        } catch (NoSuchMethodException e) {
+            throw new BeanCreationException(beanName,
+                    "no @Autowired or default constructor found in " + beanClass.getName(), e);
+        }
+    }
+
+    private Object[] resolveArguments(String beanName, Constructor<?> constructor) {
+        Class<?>[] parameterTypes = constructor.getParameterTypes();
+        Object[] arguments = new Object[parameterTypes.length];
+        for (int i = 0; i < parameterTypes.length; i++) {
+            arguments[i] = resolveDependency(beanName, parameterTypes[i], "constructor parameter " + i);
+        }
+        return arguments;
+    }
+
+    private Object resolveDependency(String beanName, Class<?> dependencyType, String injectionPoint) {
+        try {
+            return getBean(dependencyType);
+        } catch (NoSuchBeanDefinitionException e) {
+            throw new UnsatisfiedDependencyException(beanName, injectionPoint, e);
         }
     }
 }
