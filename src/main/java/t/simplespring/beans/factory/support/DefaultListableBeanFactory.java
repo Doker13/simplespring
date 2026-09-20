@@ -2,6 +2,7 @@ package t.simplespring.beans.factory.support;
 
 import t.simplespring.beans.BeansException;
 import t.simplespring.beans.factory.BeanCreationException;
+import t.simplespring.beans.factory.BeanCurrentlyInCreationException;
 import t.simplespring.beans.factory.BeanDefinitionStoreException;
 import t.simplespring.beans.factory.BeanFactory;
 import t.simplespring.beans.factory.NoSuchBeanDefinitionException;
@@ -15,13 +16,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRegistry {
 
     private final Map<String, BeanDefinition> beanDefinitions = new LinkedHashMap<>();
     private final Map<String, Object> singletons = new HashMap<>();
+    private final Set<String> beansInCreation = new LinkedHashSet<>();
 
     @Override
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
@@ -62,11 +66,18 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
             return singleton;
         }
         BeanDefinition beanDefinition = getBeanDefinition(name);
-        Object bean = createBean(name, beanDefinition);
-        if (beanDefinition.isSingleton()) {
-            singletons.put(name, bean);
+        if (!beansInCreation.add(name)) {
+            throw new BeanCurrentlyInCreationException(name, beansInCreation);
         }
-        return bean;
+        try {
+            Object bean = createBean(name, beanDefinition);
+            if (beanDefinition.isSingleton()) {
+                singletons.put(name, bean);
+            }
+            return bean;
+        } finally {
+            beansInCreation.remove(name);
+        }
     }
 
     @Override
