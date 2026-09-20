@@ -12,6 +12,7 @@ import t.simplespring.beans.factory.annotation.Autowired;
 import t.simplespring.beans.factory.config.BeanDefinition;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -70,11 +71,15 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
             throw new BeanCurrentlyInCreationException(name, beansInCreation);
         }
         try {
-            Object bean = createBean(name, beanDefinition);
+            Object bean = instantiateBean(name, beanDefinition.beanClass());
             if (beanDefinition.isSingleton()) {
                 singletons.put(name, bean);
             }
+            populateBean(name, bean);
             return bean;
+        } catch (RuntimeException e) {
+            singletons.remove(name);
+            throw e;
         } finally {
             beansInCreation.remove(name);
         }
@@ -120,8 +125,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
         });
     }
 
-    private Object createBean(String beanName, BeanDefinition beanDefinition) {
-        Class<?> beanClass = beanDefinition.beanClass();
+    private Object instantiateBean(String beanName, Class<?> beanClass) {
         Constructor<?> constructor = resolveConstructor(beanName, beanClass);
         Object[] arguments = resolveArguments(beanName, constructor);
         try {
@@ -133,6 +137,27 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
         } catch (ReflectiveOperationException e) {
             throw new BeanCreationException(beanName,
                     "instantiation of " + beanClass.getName() + " failed", e);
+        }
+    }
+
+    private void populateBean(String beanName, Object bean) {
+        for (Class<?> type = bean.getClass(); type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (field.isAnnotationPresent(Autowired.class)) {
+                    injectField(beanName, bean, field);
+                }
+            }
+        }
+    }
+
+    private void injectField(String beanName, Object bean, Field field) {
+        Object dependency = resolveDependency(beanName, field.getType(), "field '" + field.getName() + "'");
+        try {
+            field.setAccessible(true);
+            field.set(bean, dependency);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new BeanCreationException(beanName,
+                    "injection into field '" + field.getName() + "' failed", e);
         }
     }
 
