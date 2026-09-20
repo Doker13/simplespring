@@ -20,6 +20,10 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
 
     @Override
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
+        if (!beanDefinition.isSingleton() && !beanDefinition.isPrototype()) {
+            throw new BeanDefinitionStoreException(beanName,
+                    "unknown scope '%s'".formatted(beanDefinition.scope()));
+        }
         BeanDefinition existing = beanDefinitions.putIfAbsent(beanName, beanDefinition);
         if (existing != null) {
             throw new BeanDefinitionStoreException(beanName,
@@ -49,11 +53,15 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     @Override
     public Object getBean(String name) {
         Object singleton = singletons.get(name);
-        if (singleton == null) {
-            singleton = createBean(name, getBeanDefinition(name));
-            singletons.put(name, singleton);
+        if (singleton != null) {
+            return singleton;
         }
-        return singleton;
+        BeanDefinition beanDefinition = getBeanDefinition(name);
+        Object bean = createBean(name, beanDefinition);
+        if (beanDefinition.isSingleton()) {
+            singletons.put(name, bean);
+        }
+        return bean;
     }
 
     @Override
@@ -89,7 +97,11 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     }
 
     public void preInstantiateSingletons() {
-        getBeanDefinitionNames().forEach(this::getBean);
+        beanDefinitions.forEach((beanName, beanDefinition) -> {
+            if (beanDefinition.isSingleton()) {
+                getBean(beanName);
+            }
+        });
     }
 
     private Object createBean(String beanName, BeanDefinition beanDefinition) {
