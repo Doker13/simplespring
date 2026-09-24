@@ -1,15 +1,38 @@
 package t.simplespring.context.support;
 
 import t.simplespring.beans.factory.config.BeanDefinition;
+import t.simplespring.beans.factory.support.BeanDefinitionRegistry;
 import t.simplespring.beans.factory.support.DefaultListableBeanFactory;
 import t.simplespring.context.ApplicationContext;
 
-public class GenericApplicationContext implements ApplicationContext {
+import java.util.List;
+
+public class GenericApplicationContext implements ApplicationContext, BeanDefinitionRegistry {
 
     private final DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
 
     public void registerBean(String beanName, Class<?> beanClass) {
-        beanFactory.registerBeanDefinition(beanName, new BeanDefinition(beanClass));
+        registerBeanDefinition(beanName, new BeanDefinition(beanClass));
+    }
+
+    @Override
+    public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
+        beanFactory.registerBeanDefinition(beanName, beanDefinition);
+    }
+
+    @Override
+    public BeanDefinition getBeanDefinition(String beanName) {
+        return beanFactory.getBeanDefinition(beanName);
+    }
+
+    @Override
+    public boolean containsBeanDefinition(String beanName) {
+        return beanFactory.containsBeanDefinition(beanName);
+    }
+
+    @Override
+    public List<String> getBeanDefinitionNames() {
+        return beanFactory.getBeanDefinitionNames();
     }
 
     public void refresh() {
