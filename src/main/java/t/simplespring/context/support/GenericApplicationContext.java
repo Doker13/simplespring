@@ -1,6 +1,7 @@
 package t.simplespring.context.support;
 
 import t.simplespring.beans.factory.config.BeanDefinition;
+import t.simplespring.beans.factory.config.BeanPostProcessor;
 import t.simplespring.beans.factory.support.BeanDefinitionRegistry;
 import t.simplespring.beans.factory.support.DefaultListableBeanFactory;
 import t.simplespring.context.ApplicationContext;
@@ -36,7 +37,14 @@ public class GenericApplicationContext implements ApplicationContext, BeanDefini
     }
 
     public void refresh() {
+        registerBeanPostProcessors();
         beanFactory.preInstantiateSingletons();
+    }
+
+    private void registerBeanPostProcessors() {
+        for (String beanName : beanFactory.getBeanNamesForType(BeanPostProcessor.class)) {
+            beanFactory.addBeanPostProcessor(beanFactory.getBean(beanName, BeanPostProcessor.class));
+        }
     }
 
     @Override
