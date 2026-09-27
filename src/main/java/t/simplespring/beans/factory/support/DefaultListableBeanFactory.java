@@ -10,10 +10,12 @@ import t.simplespring.beans.factory.NoUniqueBeanDefinitionException;
 import t.simplespring.beans.factory.UnsatisfiedDependencyException;
 import t.simplespring.beans.factory.annotation.Autowired;
 import t.simplespring.beans.factory.config.BeanDefinition;
+import t.simplespring.beans.factory.config.BeanPostProcessor;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -21,12 +23,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRegistry {
 
     private final Map<String, BeanDefinition> beanDefinitions = new LinkedHashMap<>();
     private final Map<String, Object> singletons = new HashMap<>();
     private final Set<String> beansInCreation = new LinkedHashSet<>();
+    private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<>();
 
     @Override
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
@@ -76,6 +80,10 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 singletons.put(name, bean);
             }
             populateBean(name, bean);
+            bean = initializeBean(name, bean);
+            if (beanDefinition.isSingleton()) {
+                singletons.put(name, bean);
+            }
             return bean;
         } catch (RuntimeException e) {
             singletons.remove(name);
@@ -117,6 +125,11 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 .toList();
     }
 
+    public void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) {
+        beanPostProcessors.remove(beanPostProcessor);
+        beanPostProcessors.add(beanPostProcessor);
+    }
+
     public void preInstantiateSingletons() {
         beanDefinitions.forEach((beanName, beanDefinition) -> {
             if (beanDefinition.isSingleton()) {
@@ -148,6 +161,31 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 }
             }
         }
+    }
+
+    private Object initializeBean(String beanName, Object bean) {
+        try {
+            Object processed = applyBeanPostProcessors(bean,
+                    (processor, current) -> processor.postProcessBeforeInitialization(current, beanName));
+            return applyBeanPostProcessors(processed,
+                    (processor, current) -> processor.postProcessAfterInitialization(current, beanName));
+        } catch (BeansException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BeanCreationException(beanName, "initialization of bean failed", e);
+        }
+    }
+
+    private Object applyBeanPostProcessors(Object bean, BiFunction<BeanPostProcessor, Object, Object> hook) {
+        Object result = bean;
+        for (BeanPostProcessor processor : beanPostProcessors) {
+            Object current = hook.apply(processor, result);
+            if (current == null) {
+                return result;
+            }
+            result = current;
+        }
+        return result;
     }
 
     private void injectField(String beanName, Object bean, Field field) {
