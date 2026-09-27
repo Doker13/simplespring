@@ -8,7 +8,7 @@ import t.simplespring.context.ApplicationContext;
 
 import java.util.List;
 
-public class GenericApplicationContext implements ApplicationContext, BeanDefinitionRegistry {
+public class GenericApplicationContext implements ApplicationContext, BeanDefinitionRegistry, AutoCloseable {
 
     private final DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
 
@@ -45,6 +45,11 @@ public class GenericApplicationContext implements ApplicationContext, BeanDefini
         for (String beanName : beanFactory.getBeanNamesForType(BeanPostProcessor.class)) {
             beanFactory.addBeanPostProcessor(beanFactory.getBean(beanName, BeanPostProcessor.class));
         }
+    }
+
+    @Override
+    public void close() {
+        beanFactory.destroySingletons();
     }
 
     @Override
