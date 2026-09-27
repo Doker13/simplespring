@@ -11,6 +11,7 @@ import t.simplespring.beans.factory.UnsatisfiedDependencyException;
 import t.simplespring.beans.factory.annotation.Autowired;
 import t.simplespring.beans.factory.config.BeanDefinition;
 import t.simplespring.beans.factory.config.BeanPostProcessor;
+import t.simplespring.beans.factory.config.DestructionAwareBeanPostProcessor;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -22,13 +23,17 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 
 public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRegistry {
 
+    private static final System.Logger logger = System.getLogger(DefaultListableBeanFactory.class.getName());
+
     private final Map<String, BeanDefinition> beanDefinitions = new LinkedHashMap<>();
     private final Map<String, Object> singletons = new HashMap<>();
+    private final SequencedMap<String, Object> disposableBeans = new LinkedHashMap<>();
     private final Set<String> beansInCreation = new LinkedHashSet<>();
     private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<>();
 
@@ -80,11 +85,12 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 singletons.put(name, bean);
             }
             populateBean(name, bean);
-            bean = initializeBean(name, bean);
+            Object exposedBean = initializeBean(name, bean);
             if (beanDefinition.isSingleton()) {
-                singletons.put(name, bean);
+                singletons.put(name, exposedBean);
+                disposableBeans.put(name, bean);
             }
-            return bean;
+            return exposedBean;
         } catch (RuntimeException e) {
             singletons.remove(name);
             throw e;
@@ -136,6 +142,25 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 getBean(beanName);
             }
         });
+    }
+
+    public void destroySingletons() {
+        disposableBeans.reversed().forEach(this::destroyBean);
+        disposableBeans.clear();
+        singletons.clear();
+    }
+
+    private void destroyBean(String beanName, Object bean) {
+        for (BeanPostProcessor processor : beanPostProcessors) {
+            if (processor instanceof DestructionAwareBeanPostProcessor destructionAware) {
+                try {
+                    destructionAware.postProcessBeforeDestruction(bean, beanName);
+                } catch (RuntimeException e) {
+                    logger.log(System.Logger.Level.WARNING,
+                            "Destruction of bean with name '%s' threw an exception".formatted(beanName), e);
+                }
+            }
+        }
     }
 
     private Object instantiateBean(String beanName, Class<?> beanClass) {
