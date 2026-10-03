@@ -36,7 +36,8 @@ public class ClassPathBeanDefinitionScanner {
             for (String className : findClassNames(basePackage)) {
                 Class<?> candidate = loadClass(className);
                 if (isCandidateComponent(candidate)) {
-                    registry.registerBeanDefinition(beanName(candidate), new BeanDefinition(candidate, scope(candidate)));
+                    registry.registerBeanDefinition(beanName(candidate), new BeanDefinition(
+                            candidate, scope(candidate), candidate.isAnnotationPresent(Primary.class)));
                     registered++;
                 }
             }

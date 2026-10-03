@@ -2,7 +2,7 @@ package t.simplespring.beans.factory.config;
 
 import java.util.Objects;
 
-public record BeanDefinition(Class<?> beanClass, String scope) {
+public record BeanDefinition(Class<?> beanClass, String scope, boolean primary) {
 
     public static final String SCOPE_SINGLETON = "singleton";
     public static final String SCOPE_PROTOTYPE = "prototype";
@@ -10,6 +10,10 @@ public record BeanDefinition(Class<?> beanClass, String scope) {
     public BeanDefinition {
         Objects.requireNonNull(beanClass, "beanClass");
         Objects.requireNonNull(scope, "scope");
+    }
+
+    public BeanDefinition(Class<?> beanClass, String scope) {
+        this(beanClass, scope, false);
     }
 
     public BeanDefinition(Class<?> beanClass) {
