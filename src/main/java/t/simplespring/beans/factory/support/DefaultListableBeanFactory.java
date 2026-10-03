@@ -5,6 +5,7 @@ import t.simplespring.beans.factory.BeanCreationException;
 import t.simplespring.beans.factory.BeanCurrentlyInCreationException;
 import t.simplespring.beans.factory.BeanDefinitionStoreException;
 import t.simplespring.beans.factory.BeanFactory;
+import t.simplespring.beans.factory.BeanNotOfRequiredTypeException;
 import t.simplespring.beans.factory.NoSuchBeanDefinitionException;
 import t.simplespring.beans.factory.NoUniqueBeanDefinitionException;
 import t.simplespring.beans.factory.UnsatisfiedDependencyException;
@@ -23,6 +24,7 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -39,6 +41,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     private final Map<String, Object> singletons = new HashMap<>();
     private final SequencedMap<String, Object> disposableBeans = new LinkedHashMap<>();
     private final Set<String> beansInCreation = new LinkedHashSet<>();
+    private final Set<String> earlySingletonReferences = new HashSet<>();
     private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<>();
 
     @Override
@@ -77,6 +80,9 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     public Object getBean(String name) {
         Object singleton = singletons.get(name);
         if (singleton != null) {
+            if (beansInCreation.contains(name)) {
+                earlySingletonReferences.add(name);
+            }
             return singleton;
         }
         BeanDefinition beanDefinition = getBeanDefinition(name);
@@ -90,6 +96,11 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
             }
             populateBean(name, bean);
             Object exposedBean = initializeBean(name, bean);
+            if (exposedBean != bean && earlySingletonReferences.contains(name)) {
+                throw new BeanCurrentlyInCreationException(name,
+                        "bean has been injected into other beans in its raw version as part of a circular "
+                                + "reference, but has eventually been replaced by a bean post-processor");
+            }
             if (beanDefinition.isSingleton()) {
                 singletons.put(name, exposedBean);
                 disposableBeans.put(name, bean);
@@ -100,6 +111,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
             throw e;
         } finally {
             beansInCreation.remove(name);
+            earlySingletonReferences.remove(name);
         }
     }
 
@@ -107,15 +119,14 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     public <T> T getBean(String name, Class<T> requiredType) {
         Object bean = getBean(name);
         if (!requiredType.isInstance(bean)) {
-            throw new BeansException("Bean named '%s' is expected to be of type '%s' but was actually of type '%s'"
-                    .formatted(name, requiredType.getName(), bean.getClass().getName()));
+            throw new BeanNotOfRequiredTypeException(name, requiredType, bean.getClass());
         }
         return requiredType.cast(bean);
     }
 
     @Override
     public <T> T getBean(Class<T> requiredType) {
-        return requiredType.cast(getBean(determineAutowireCandidate(requiredType, null)));
+        return getBean(determineAutowireCandidate(requiredType, null), requiredType);
     }
 
     @Override
@@ -293,7 +304,12 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
         } catch (NoSuchBeanDefinitionException e) {
             throw new UnsatisfiedDependencyException(beanName, descriptor.description(), e);
         }
-        return getBean(candidate);
+        Object dependency = getBean(candidate);
+        if (!descriptor.dependencyType().isInstance(dependency)) {
+            throw new UnsatisfiedDependencyException(beanName, descriptor.description(),
+                    new BeanNotOfRequiredTypeException(candidate, descriptor.dependencyType(), dependency.getClass()));
+        }
+        return dependency;
     }
 
     private String determineAutowireCandidate(Class<?> type, String qualifier) {

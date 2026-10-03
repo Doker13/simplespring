@@ -8,4 +8,8 @@ public class BeanCurrentlyInCreationException extends BeanCreationException {
         super(beanName, "circular dependency %s -> %s"
                 .formatted(String.join(" -> ", creationPath), beanName));
     }
+
+    public BeanCurrentlyInCreationException(String beanName, String reason) {
+        super(beanName, reason);
+    }
 }
