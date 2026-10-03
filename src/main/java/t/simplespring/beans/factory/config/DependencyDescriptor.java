@@ -4,6 +4,7 @@ import t.simplespring.beans.factory.annotation.Qualifier;
 
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
 public record DependencyDescriptor(Class<?> dependencyType, String qualifier, String description) {
@@ -13,7 +14,10 @@ public record DependencyDescriptor(Class<?> dependencyType, String qualifier, St
     }
 
     public static DependencyDescriptor forParameter(Parameter parameter, int index) {
-        return new DependencyDescriptor(parameter.getType(), qualifier(parameter), "constructor parameter " + index);
+        String description = parameter.getDeclaringExecutable() instanceof Method method
+                ? "parameter %d of method '%s'".formatted(index, method.getName())
+                : "constructor parameter " + index;
+        return new DependencyDescriptor(parameter.getType(), qualifier(parameter), description);
     }
 
     private static String qualifier(AnnotatedElement injectionPoint) {

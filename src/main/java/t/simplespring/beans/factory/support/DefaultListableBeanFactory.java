@@ -15,8 +15,10 @@ import t.simplespring.beans.factory.config.DependencyDescriptor;
 import t.simplespring.beans.factory.config.DestructionAwareBeanPostProcessor;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,7 +84,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
             throw new BeanCurrentlyInCreationException(name, beansInCreation);
         }
         try {
-            Object bean = instantiateBean(name, beanDefinition.beanClass());
+            Object bean = createBeanInstance(name, beanDefinition);
             if (beanDefinition.isSingleton()) {
                 singletons.put(name, bean);
             }
@@ -158,6 +160,37 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
                 }
             }
         }
+    }
+
+    private Object createBeanInstance(String beanName, BeanDefinition beanDefinition) {
+        return beanDefinition.factoryMethod() != null
+                ? instantiateUsingFactoryMethod(beanName, beanDefinition)
+                : instantiateBean(beanName, beanDefinition.beanClass());
+    }
+
+    private Object instantiateUsingFactoryMethod(String beanName, BeanDefinition beanDefinition) {
+        Method factoryMethod = beanDefinition.factoryMethod();
+        Object factoryBean = getBean(beanDefinition.factoryBeanName());
+        Object[] arguments = resolveArguments(beanName, factoryMethod);
+        Object bean;
+        try {
+            factoryMethod.setAccessible(true);
+            bean = factoryMethod.invoke(factoryBean, arguments);
+        } catch (InvocationTargetException e) {
+            throw new BeanCreationException(beanName,
+                    "factory method '%s' of bean '%s' threw an exception"
+                            .formatted(factoryMethod.getName(), beanDefinition.factoryBeanName()), e.getCause());
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new BeanCreationException(beanName,
+                    "invocation of factory method '%s' of bean '%s' failed"
+                            .formatted(factoryMethod.getName(), beanDefinition.factoryBeanName()), e);
+        }
+        if (bean == null) {
+            throw new BeanCreationException(beanName,
+                    "factory method '%s' of bean '%s' returned null"
+                            .formatted(factoryMethod.getName(), beanDefinition.factoryBeanName()));
+        }
+        return bean;
     }
 
     private Object instantiateBean(String beanName, Class<?> beanClass) {
@@ -244,8 +277,8 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
         }
     }
 
-    private Object[] resolveArguments(String beanName, Constructor<?> constructor) {
-        Parameter[] parameters = constructor.getParameters();
+    private Object[] resolveArguments(String beanName, Executable executable) {
+        Parameter[] parameters = executable.getParameters();
         Object[] arguments = new Object[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
             arguments[i] = resolveDependency(beanName, DependencyDescriptor.forParameter(parameters[i], i));
