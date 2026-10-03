@@ -8,6 +8,7 @@ public class AnnotationConfigApplicationContext extends GenericApplicationContex
     public AnnotationConfigApplicationContext(String... basePackages) {
         registerBean(InitDestroyAnnotationBeanPostProcessor.class.getName(), InitDestroyAnnotationBeanPostProcessor.class);
         new ClassPathBeanDefinitionScanner(this).scan(basePackages);
+        new ConfigurationClassBeanDefinitionReader(this).loadBeanDefinitions();
         refresh();
     }
 }
