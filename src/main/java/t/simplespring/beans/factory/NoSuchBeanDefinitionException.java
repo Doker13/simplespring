@@ -12,7 +12,7 @@ public class NoSuchBeanDefinitionException extends BeansException {
         super("No bean of type '%s' is defined".formatted(type.getName()));
     }
 
-    protected NoSuchBeanDefinitionException(Class<?> type, String reason) {
+    public NoSuchBeanDefinitionException(Class<?> type, String reason) {
         super("No qualifying bean of type '%s': %s".formatted(type.getName(), reason));
     }
 }

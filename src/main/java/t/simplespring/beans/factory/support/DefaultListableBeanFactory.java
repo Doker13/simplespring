@@ -11,11 +11,13 @@ import t.simplespring.beans.factory.UnsatisfiedDependencyException;
 import t.simplespring.beans.factory.annotation.Autowired;
 import t.simplespring.beans.factory.config.BeanDefinition;
 import t.simplespring.beans.factory.config.BeanPostProcessor;
+import t.simplespring.beans.factory.config.DependencyDescriptor;
 import t.simplespring.beans.factory.config.DestructionAwareBeanPostProcessor;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -111,12 +113,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
 
     @Override
     public <T> T getBean(Class<T> requiredType) {
-        List<String> candidates = getBeanNamesForType(requiredType);
-        return switch (candidates.size()) {
-            case 0 -> throw new NoSuchBeanDefinitionException(requiredType);
-            case 1 -> requiredType.cast(getBean(candidates.getFirst()));
-            default -> throw new NoUniqueBeanDefinitionException(requiredType, candidates);
-        };
+        return requiredType.cast(getBean(determineAutowireCandidate(requiredType, null)));
     }
 
     @Override
@@ -214,7 +211,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     }
 
     private void injectField(String beanName, Object bean, Field field) {
-        Object dependency = resolveDependency(beanName, field.getType(), "field '" + field.getName() + "'");
+        Object dependency = resolveDependency(beanName, DependencyDescriptor.forField(field));
         try {
             field.setAccessible(true);
             field.set(bean, dependency);
@@ -248,19 +245,49 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
     }
 
     private Object[] resolveArguments(String beanName, Constructor<?> constructor) {
-        Class<?>[] parameterTypes = constructor.getParameterTypes();
-        Object[] arguments = new Object[parameterTypes.length];
-        for (int i = 0; i < parameterTypes.length; i++) {
-            arguments[i] = resolveDependency(beanName, parameterTypes[i], "constructor parameter " + i);
+        Parameter[] parameters = constructor.getParameters();
+        Object[] arguments = new Object[parameters.length];
+        for (int i = 0; i < parameters.length; i++) {
+            arguments[i] = resolveDependency(beanName, DependencyDescriptor.forParameter(parameters[i], i));
         }
         return arguments;
     }
 
-    private Object resolveDependency(String beanName, Class<?> dependencyType, String injectionPoint) {
+    private Object resolveDependency(String beanName, DependencyDescriptor descriptor) {
+        String candidate;
         try {
-            return getBean(dependencyType);
+            candidate = determineAutowireCandidate(descriptor.dependencyType(), descriptor.qualifier());
         } catch (NoSuchBeanDefinitionException e) {
-            throw new UnsatisfiedDependencyException(beanName, injectionPoint, e);
+            throw new UnsatisfiedDependencyException(beanName, descriptor.description(), e);
         }
+        return getBean(candidate);
+    }
+
+    private String determineAutowireCandidate(Class<?> type, String qualifier) {
+        List<String> candidates = getBeanNamesForType(type);
+        if (qualifier != null) {
+            if (!candidates.contains(qualifier)) {
+                throw new NoSuchBeanDefinitionException(type,
+                        "no bean named '%s' among candidates: %s".formatted(qualifier, candidates));
+            }
+            return qualifier;
+        }
+        return switch (candidates.size()) {
+            case 0 -> throw new NoSuchBeanDefinitionException(type);
+            case 1 -> candidates.getFirst();
+            default -> determinePrimaryCandidate(type, candidates);
+        };
+    }
+
+    private String determinePrimaryCandidate(Class<?> type, List<String> candidates) {
+        List<String> primaryCandidates = candidates.stream()
+                .filter(candidate -> beanDefinitions.get(candidate).primary())
+                .toList();
+        return switch (primaryCandidates.size()) {
+            case 0 -> throw new NoUniqueBeanDefinitionException(type, candidates);
+            case 1 -> primaryCandidates.getFirst();
+            default -> throw new NoUniqueBeanDefinitionException(type,
+                    "more than one 'primary' bean found among candidates: " + primaryCandidates);
+        };
     }
 }
