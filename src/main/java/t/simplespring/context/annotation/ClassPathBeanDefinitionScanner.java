@@ -6,6 +6,7 @@ import t.simplespring.beans.factory.support.BeanDefinitionRegistry;
 import t.simplespring.stereotype.Component;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.net.JarURLConnection;
 import java.net.URISyntaxException;
@@ -35,8 +36,9 @@ public class ClassPathBeanDefinitionScanner {
         for (String basePackage : basePackages) {
             for (String className : findClassNames(basePackage)) {
                 Class<?> candidate = loadClass(className);
-                if (isCandidateComponent(candidate)) {
-                    registry.registerBeanDefinition(beanName(candidate), new BeanDefinition(
+                Component component = findComponent(candidate);
+                if (component != null) {
+                    registry.registerBeanDefinition(beanName(candidate, component), new BeanDefinition(
                             candidate, scope(candidate), candidate.isAnnotationPresent(Primary.class)));
                     registered++;
                 }
@@ -97,14 +99,25 @@ public class ClassPathBeanDefinitionScanner {
         }
     }
 
-    private static boolean isCandidateComponent(Class<?> candidate) {
-        return candidate.isAnnotationPresent(Component.class)
-                && !candidate.isInterface()
-                && !Modifier.isAbstract(candidate.getModifiers());
+    private static Component findComponent(Class<?> candidate) {
+        if (candidate.isInterface() || Modifier.isAbstract(candidate.getModifiers())) {
+            return null;
+        }
+        Component component = candidate.getAnnotation(Component.class);
+        if (component != null) {
+            return component;
+        }
+        for (Annotation annotation : candidate.getAnnotations()) {
+            Component metaComponent = annotation.annotationType().getAnnotation(Component.class);
+            if (metaComponent != null) {
+                return metaComponent;
+            }
+        }
+        return null;
     }
 
-    private static String beanName(Class<?> componentClass) {
-        String explicitName = componentClass.getAnnotation(Component.class).value();
+    private static String beanName(Class<?> componentClass, Component component) {
+        String explicitName = component.value();
         if (!explicitName.isBlank()) {
             return explicitName;
         }
