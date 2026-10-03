@@ -4,8 +4,8 @@ import t.simplespring.beans.BeansException;
 import t.simplespring.beans.factory.BeanCreationException;
 import t.simplespring.beans.factory.BeanCurrentlyInCreationException;
 import t.simplespring.beans.factory.BeanDefinitionStoreException;
-import t.simplespring.beans.factory.BeanFactory;
 import t.simplespring.beans.factory.BeanNotOfRequiredTypeException;
+import t.simplespring.beans.factory.ListableBeanFactory;
 import t.simplespring.beans.factory.NoSuchBeanDefinitionException;
 import t.simplespring.beans.factory.NoUniqueBeanDefinitionException;
 import t.simplespring.beans.factory.UnsatisfiedDependencyException;
@@ -33,7 +33,7 @@ import java.util.SequencedMap;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRegistry {
+public class DefaultListableBeanFactory implements ListableBeanFactory, BeanDefinitionRegistry {
 
     private static final System.Logger logger = System.getLogger(DefaultListableBeanFactory.class.getName());
 
@@ -134,6 +134,7 @@ public class DefaultListableBeanFactory implements BeanFactory, BeanDefinitionRe
         return containsBeanDefinition(name);
     }
 
+    @Override
     public List<String> getBeanNamesForType(Class<?> type) {
         return beanDefinitions.entrySet().stream()
                 .filter(entry -> type.isAssignableFrom(entry.getValue().beanClass()))

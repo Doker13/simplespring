@@ -12,6 +12,10 @@ public class GenericApplicationContext implements ApplicationContext, BeanDefini
 
     private final DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
 
+    public DefaultListableBeanFactory getBeanFactory() {
+        return beanFactory;
+    }
+
     public void registerBean(String beanName, Class<?> beanClass) {
         registerBeanDefinition(beanName, new BeanDefinition(beanClass));
     }
