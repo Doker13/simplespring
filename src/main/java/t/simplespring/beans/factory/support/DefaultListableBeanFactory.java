@@ -43,6 +43,7 @@ public class DefaultListableBeanFactory implements ListableBeanFactory, BeanDefi
     private final Set<String> beansInCreation = new LinkedHashSet<>();
     private final Set<String> earlySingletonReferences = new HashSet<>();
     private final List<BeanPostProcessor> beanPostProcessors = new ArrayList<>();
+    private final Map<Class<?>, Object> resolvableDependencies = new HashMap<>();
 
     @Override
     public void registerBeanDefinition(String beanName, BeanDefinition beanDefinition) {
@@ -145,6 +146,14 @@ public class DefaultListableBeanFactory implements ListableBeanFactory, BeanDefi
     public void addBeanPostProcessor(BeanPostProcessor beanPostProcessor) {
         beanPostProcessors.remove(beanPostProcessor);
         beanPostProcessors.add(beanPostProcessor);
+    }
+
+    public void registerResolvableDependency(Class<?> dependencyType, Object autowiredValue) {
+        if (!dependencyType.isInstance(autowiredValue)) {
+            throw new IllegalArgumentException("Value [%s] does not implement specified dependency type [%s]"
+                    .formatted(autowiredValue, dependencyType.getName()));
+        }
+        resolvableDependencies.put(dependencyType, autowiredValue);
     }
 
     public void preInstantiateSingletons() {
@@ -299,6 +308,10 @@ public class DefaultListableBeanFactory implements ListableBeanFactory, BeanDefi
     }
 
     private Object resolveDependency(String beanName, DependencyDescriptor descriptor) {
+        Object autowiredValue = resolvableDependencies.get(descriptor.dependencyType());
+        if (autowiredValue != null) {
+            return autowiredValue;
+        }
         String candidate;
         try {
             candidate = determineAutowireCandidate(descriptor.dependencyType(), descriptor.qualifier());
