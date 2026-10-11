@@ -5,12 +5,21 @@ import t.simplespring.beans.factory.config.BeanPostProcessor;
 import t.simplespring.beans.factory.support.BeanDefinitionRegistry;
 import t.simplespring.beans.factory.support.DefaultListableBeanFactory;
 import t.simplespring.context.ApplicationContext;
+import t.simplespring.context.ApplicationEvent;
+import t.simplespring.context.ApplicationEventPublisher;
+import t.simplespring.context.ApplicationListener;
+import t.simplespring.context.event.SimpleApplicationEventMulticaster;
 
 import java.util.List;
 
 public class GenericApplicationContext implements ApplicationContext, BeanDefinitionRegistry, AutoCloseable {
 
     private final DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+    private final SimpleApplicationEventMulticaster applicationEventMulticaster = new SimpleApplicationEventMulticaster();
+
+    public GenericApplicationContext() {
+        beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
+    }
 
     public DefaultListableBeanFactory getBeanFactory() {
         return beanFactory;
@@ -42,6 +51,7 @@ public class GenericApplicationContext implements ApplicationContext, BeanDefini
 
     public void refresh() {
         registerBeanPostProcessors();
+        registerListeners();
         beanFactory.preInstantiateSingletons();
     }
 
@@ -49,6 +59,19 @@ public class GenericApplicationContext implements ApplicationContext, BeanDefini
         for (String beanName : beanFactory.getBeanNamesForType(BeanPostProcessor.class)) {
             beanFactory.addBeanPostProcessor(beanFactory.getBean(beanName, BeanPostProcessor.class));
         }
+    }
+
+    private void registerListeners() {
+        for (String beanName : beanFactory.getBeanNamesForType(ApplicationListener.class)) {
+            applicationEventMulticaster.addApplicationListener(
+                    beanFactory.getBean(beanName, ApplicationListener.class),
+                    beanFactory.getBeanDefinition(beanName).beanClass());
+        }
+    }
+
+    @Override
+    public void publishEvent(ApplicationEvent event) {
+        applicationEventMulticaster.multicastEvent(event);
     }
 
     @Override
