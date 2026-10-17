@@ -1,21 +1,22 @@
 package t.simplespring.integration;
 
+import t.simplespring.beans.exception.BeanNotOfRequiredTypeException;
+import t.simplespring.beans.factory.config.BeanPostProcessor;
+import t.simplespring.context.impl.AnnotationConfigApplicationContext;
+import t.simplespring.integration.shop.config.InvoiceService;
+import t.simplespring.integration.shop.notification.EmailNotifier;
+import t.simplespring.integration.shop.notification.SmsNotifier;
+import t.simplespring.integration.shop.order.Checkout;
+import t.simplespring.integration.shop.order.DefaultOrderService;
+import t.simplespring.integration.shop.order.Order;
+import t.simplespring.integration.shop.order.OrderRepository;
+import t.simplespring.integration.shop.order.OrderService;
+import t.simplespring.integration.shop.order.ShoppingCart;
+import t.simplespring.integration.shop.support.BeanTracker;
+import t.simplespring.integration.shop.support.Journal;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import t.simplespring.beans.factory.BeanNotOfRequiredTypeException;
-import t.simplespring.beans.factory.config.BeanPostProcessor;
-import t.simplespring.context.annotation.AnnotationConfigApplicationContext;
-import t.simplespring.integration.shop.BeanTracker;
-import t.simplespring.integration.shop.Checkout;
-import t.simplespring.integration.shop.DefaultOrderService;
-import t.simplespring.integration.shop.EmailNotifier;
-import t.simplespring.integration.shop.InvoiceService;
-import t.simplespring.integration.shop.Journal;
-import t.simplespring.integration.shop.Order;
-import t.simplespring.integration.shop.OrderRepository;
-import t.simplespring.integration.shop.OrderService;
-import t.simplespring.integration.shop.ShoppingCart;
-import t.simplespring.integration.shop.SmsNotifier;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
